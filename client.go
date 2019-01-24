@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+        "github.com/hashicorp/errwrap"
 )
 
 type Client struct {
@@ -16,6 +17,8 @@ type Client struct {
 	Username string
 	// Password to use.
 	Password  string
+	// Token to use
+	Token	  string
 	host      string
 	transport *http.Transport
 	timeout   time.Duration
@@ -32,6 +35,21 @@ func NewClient(uri string, username string, password string) (me *Client, err er
 		host:     u.Host,
 		Username: username,
 		Password: password,
+	}
+
+	return me, nil
+}
+
+func NewTokenClient(uri string, token string) (me *Client, err error) {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, err
+	}
+
+	me = &Client{
+		Endpoint: uri,
+		host:     u.Host,
+		Token: token,
 	}
 
 	return me, nil
@@ -71,7 +89,15 @@ func newGETRequest(client *Client, path string) (*http.Request, error) {
 	req, err := http.NewRequest("GET", s, nil)
 
 	req.Close = true
-	req.SetBasicAuth(client.Username, client.Password)
+	if client.Username == "" && client.Password == "" {
+		if client.Token != "" {
+			req.Header.Set("authorization", "Bearer "+ client.Token)
+		} else {
+		return nil, errwrap.Wrapf("No Username/Password or token: {{err}}", err)
+		}
+	} else {
+		req.SetBasicAuth(client.Username, client.Password)
+	}
 
 	// set Opaque to preserve the percent-encoded path. MK.
 	req.URL.Opaque = "//" + client.host + "/-/" + path
@@ -84,7 +110,15 @@ func newGETRequestWithParameters(client *Client, path string, qs url.Values) (*h
 
 	req, err := http.NewRequest("GET", s, nil)
 	req.Close = true
-	req.SetBasicAuth(client.Username, client.Password)
+	if client.Username == "" && client.Password == "" {
+		if client.Token != "" {
+			req.Header.Set("authorization", "Bearer "+ client.Token)
+		} else {
+		return nil, errwrap.Wrapf("No Username/Password or token: {{err}}", err)
+		}
+	} else {
+		req.SetBasicAuth(client.Username, client.Password)
+	}
 
 	return req, err
 }
@@ -95,7 +129,15 @@ func newRequestWithBody(client *Client, method string, path string, body []byte)
 	req, err := http.NewRequest(method, s, bytes.NewReader(body))
 
 	req.Close = true
-	req.SetBasicAuth(client.Username, client.Password)
+	if client.Username == "" && client.Password == "" {
+		if client.Token != "" {
+			req.Header.Set("authorization", "Bearer "+ client.Token)
+		} else {
+		return nil, errwrap.Wrapf("No Username/Password or token: {{err}}", err)
+		}
+	} else {
+		req.SetBasicAuth(client.Username, client.Password)
+	}
 	// set Opaque to preserve the percent-encoded path.
 	req.URL.Opaque = "//" + client.host + "/-/" + path
 

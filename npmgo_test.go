@@ -72,7 +72,7 @@ type portTestStruct struct {
 	Port Port `json:"port"`
 }
 
-var _ = Describe("Npmgo", func() {
+var _ = Describe("Npmgo with username/password", func() {
 	var (
 		rmqc *Client
 	)
@@ -96,7 +96,7 @@ var _ = Describe("Npmgo", func() {
 
 	Context("GET /npm/v1/tokens", func() {
 		It("returns decoded response", func() {
-			token := os.Getenv("NPMJS_EXISTINGTOKEN")
+			token := os.Getenv("NPMJS_EXISTINGTOKENID")
 			xs, err := rmqc.ListTokens()
 			Ω(err).Should(BeNil())
 
@@ -108,7 +108,75 @@ var _ = Describe("Npmgo", func() {
 	})
 
 	Context("GET /tokens for {id} when id exists", func() {
+		token := os.Getenv("NPMJS_EXISTINGTOKENID")
+		It("returns decoded response", func() {
+			t, err := rmqc.GetToken(token)
+			Ω(err).Should(BeNil())
+
+			Ω(t.Id).Should(BeEquivalentTo(token))
+			Ω(t.Token).ShouldNot(BeNil())
+			Ω(t.Created).ShouldNot(BeNil())
+		})
+	})
+
+	Context("POST /tokens", func() {
+		It("creates a token", func() {
+                	password := os.Getenv("NPMJS_PASSWORD")
+			info := TokenSettings{Password: password, Readonly: false}
+			//var resp Objects
+			resp, err := rmqc.CreateToken(info)
+			Ω(err).Should(BeNil())
+			//Ω(resp.Status).Should(HavePrefix("20"))
+			
+			// give internal events a moment to be
+			// handled
+			awaitEventPropagation()
+
+			t, err := rmqc.GetToken(resp.Id)
+			Ω(err).Should(BeNil())
+			Ω(t.Id).ShouldNot(BeNil())
+
+			rmqc.DeleteToken(resp.Id)
+		})
+	})
+})
+
+var _ = Describe("Npmgo with token", func() {
+	var (
+		rmqc *Client
+	)
+
+	BeforeEach(func() {
 		token := os.Getenv("NPMJS_EXISTINGTOKEN")
+		rmqc, _ = NewTokenClient("http://registry.npmjs.org", token)
+	})
+
+	Context("GET /whoami", func() {
+		It("returns decoded response", func() {
+			res, err := rmqc.Whoami()
+
+			Ω(err).Should(BeNil())
+
+			Ω(res.Username).ShouldNot(BeNil())
+			Ω(res.Username).Should(Equal("chrismatteson"))
+		})
+	})
+
+	Context("GET /npm/v1/tokens", func() {
+		It("returns decoded response", func() {
+			token := os.Getenv("NPMJS_EXISTINGTOKENID")
+			xs, err := rmqc.ListTokens()
+			Ω(err).Should(BeNil())
+
+			t := FindTokenById(xs, token)
+			Ω(t.Id).Should(BeEquivalentTo(token))
+			Ω(t.Token).ShouldNot(BeNil())
+			Ω(t.Created).ShouldNot(BeNil())
+		})
+	})
+
+	Context("GET /tokens for {id} when id exists", func() {
+		token := os.Getenv("NPMJS_EXISTINGTOKENID")
 		It("returns decoded response", func() {
 			t, err := rmqc.GetToken(token)
 			Ω(err).Should(BeNil())
